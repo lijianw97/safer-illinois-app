@@ -55,8 +55,6 @@ class Exposure with Service implements NotificationsListener {
   static const String _teksMethodName                  = 'TEKs';
   static const String _tekRPIsMethodName               = 'tekRPIs';
   static const String _expireTEKMethodName             = 'expireTEK';
-  static const String _exposureRPIMethodName           = 'exposureRPILog';
-  static const String _exposureRSSIMethodName          = 'exposureRSSILog';
 
   static const String _settingsParamName               = 'settings';
   static const String _tekParamName                    = 'tek';
@@ -77,30 +75,6 @@ class Exposure with Service implements NotificationsListener {
   static const String _databaseExposureRPIField         = "RPI";
   static const String _databaseExposureDurationField    = "Duration";
   static const String _databaseExposureProcessedField   = "Processed";
-
-  static const String _databaseRpiTable                 = "ExposureRpi";
-  static const String _databaseRpiSessionIdField        = "SessionId";
-  static const String _databaseRpiTEKField              = "TEK";
-  static const String _databaseRpiTEKStartTimeField     = "TEKStartTime";
-  static const String _databaseRpiRPIField              = "RPI";
-  static const String _databaseRpiRPIStartTimeField     = "RPIStartTime";
-  static const String _databaseRpiEventField            = "Event";
-  
-  static const String _databaseContactTable             = "ExposureContact";
-  static const String _databaseContactSessionIdField    = "SessionId";
-  static const String _databaseContactStartTimeField    = "StartTime";
-  static const String _databaseContactDurationField     = "Duration";
-  static const String _databaseContactRPIField          = "RPI";
-  static const String _databaseContactSourceField       = "Source";
-  static const String _databaseContactAddressField      = "Address";
-
-  static const String _databaseRssiTable                = "ExposureRssi";
-  static const String _databaseRssiSessionIdField       = "SessionId";
-  static const String _databaseRssiTimestampField       = "Timestamp";
-  static const String _databaseRssiRSSIField            = "RSSI";
-  static const String _databaseRssiRPIField             = "RPI";
-  static const String _databaseRssiSourceField          = "Source";
-  static const String _databaseRssiAddressField         = "Address";
 
   static const String _databaseRowID                    = "rowid";
 
@@ -127,8 +101,6 @@ class Exposure with Service implements NotificationsListener {
   bool     _checkingExposures;
   int      _exposureMinDuration;
   int      _exposureLogMinDuration;
-
-  int      _logSessionId;
 
   // Singletone instance
 
@@ -338,16 +310,9 @@ class Exposure with Service implements NotificationsListener {
     }
     else if (call.method == _exposureNotificationName) {
       _storeLocalExposure(call.arguments);
-      _logContact(call.arguments);
     }
     else if (call.method == _exposureThickNotificationName) {
       NotificationService().notify(notifyExposureThick, call.arguments);
-    }
-    else if (call.method == _exposureRPIMethodName) {
-      _logRpi(call.arguments);
-    }
-    else if (call.method == _exposureRSSIMethodName) {
-      _logRssi(call.arguments);
     }
     return null;
   }
@@ -360,9 +325,6 @@ class Exposure with Service implements NotificationsListener {
       String databaseFile = join(databasePath, _databaseName);
       _database = await openDatabase(databaseFile, version: _databaseVersion, onCreate: (db, version) async {
         try { await db.execute("CREATE TABLE IF NOT EXISTS $_databaseExposureTable($_databaseExposureTimestampField INTEGER NOT NULL, $_databaseExposureRPIField TEXT NOT NULL, $_databaseExposureDurationField INTEGER NOT NULL, $_databaseExposureProcessedField INTEGER NOT NULL DEFAULT '0')",); } catch(e) { print(e?.toString()); }
-        try { await db.execute("CREATE TABLE IF NOT EXISTS $_databaseRpiTable($_databaseRpiSessionIdField INTEGER, $_databaseRpiTEKField TEXT, $_databaseRpiTEKStartTimeField INTEGER, $_databaseRpiRPIField TEXT, $_databaseRpiRPIStartTimeField INTEGER, $_databaseRpiEventField TEXT)",); } catch(e) { print(e?.toString()); }
-        try { await db.execute("CREATE TABLE IF NOT EXISTS $_databaseContactTable($_databaseContactSessionIdField INTEGER, $_databaseContactStartTimeField INTEGER, $_databaseContactDurationField INTEGER, $_databaseContactRPIField TEXT, $_databaseContactSourceField TEXT, $_databaseContactAddressField TEXT)",); } catch(e) { print(e?.toString()); }
-        try { await db.execute("CREATE TABLE IF NOT EXISTS $_databaseRssiTable($_databaseRssiSessionIdField INTEGER, $_databaseRssiTimestampField INTEGER, $_databaseRssiRSSIField INTEGER, $_databaseRssiRPIField TEXT, $_databaseRssiSourceField TEXT, $_databaseRssiAddressField TEXT)",); } catch(e) { print(e?.toString()); }
       });
     }
   }
@@ -544,76 +506,6 @@ class Exposure with Service implements NotificationsListener {
     return result;
   }
 
-  Future<void> _logContact(Map<dynamic, dynamic> exposure) async {
-    if ((_logSessionId != null) && (_database != null) && (exposure != null)) {
-      String rpi = (exposure != null) ? exposure['rpi'] : null;
-      int timestamp = (exposure != null) ? exposure['timestamp'] : null;
-      int duration = (exposure != null) ? exposure['duration'] : null;
-      bool isiOSRecord = (exposure != null) ? exposure['isiOSRecord'] : null;
-      String source = (isiOSRecord == true) ? 'iOSRecord' : 'AndroidRecord';
-      String peripheralUuid = (exposure != null) ? exposure['peripheralUuid'] : null;
-      //int endTimestamp = (exposure != null) ? exposure['endTimestamp'] : null;
-
-      try {
-        await _database.insert(_databaseContactTable, {
-          _databaseContactSessionIdField: _logSessionId,
-          _databaseContactStartTimeField: timestamp,
-          _databaseContactDurationField: duration,
-          _databaseContactRPIField: rpi,
-          _databaseContactSourceField: source,
-          _databaseContactAddressField: peripheralUuid,
-        });
-      } catch (e) {
-        print(e?.toString());
-      }
-    }
-  }
-
-  Future<void> _logRpi(Map<dynamic, dynamic> rpiUpdates) async {
-    if ((_logSessionId != null) && (_database != null) && (rpiUpdates != null)) {
-      String rpi = (rpiUpdates != null) ? rpiUpdates['rpi'] : null;
-      String updateType = (rpiUpdates != null) ? rpiUpdates['updateType'] : null;
-      int updateTime = (rpiUpdates != null) ? rpiUpdates['timestamp'] : null;
-      int _i = (rpiUpdates != null) ? rpiUpdates['_i'] : null;
-      String tekString = (rpiUpdates != null) ? rpiUpdates['tek'] : null;
-      var _iTimestamp = _i * _rpiRefreshInterval;
-
-      try {
-        await _database.insert(_databaseRpiTable, {
-          _databaseRpiSessionIdField:   _logSessionId,
-          _databaseRpiTEKField:          tekString,
-          _databaseRpiTEKStartTimeField: _iTimestamp,
-          _databaseRpiRPIField:          rpi,
-          _databaseRpiRPIStartTimeField: updateTime,
-          _databaseRpiEventField:        updateType,
-        });
-      }
-      catch(e) { print(e?.toString()); }
-    }
-  }
-
-  Future<void> _logRssi(Map<dynamic, dynamic> rssi) async {
-    if ((_logSessionId != null) && (_database != null) && (rssi != null)) {
-      int timestamp = (rssi != null) ? rssi['timestamp'] : null;
-      String rpi = (rssi != null) ? rssi['rpi'] : null;
-      int rssiVal = (rssi != null) ? rssi['rssi'] : null;
-      String address = (rssi != null) ? rssi['address'] : null;
-      bool isiOSRecord = (rssi != null) ? rssi['isiOSRecord'] : null;
-      String source = (isiOSRecord == true) ? 'iOSRecord' : 'AndroidRecord';
-
-      try {
-        await _database.insert(_databaseRssiTable, {
-          _databaseRssiSessionIdField: _logSessionId,
-          _databaseRssiTimestampField: timestamp,
-          _databaseRssiRSSIField: rssiVal,
-          _databaseRssiRPIField: rpi,
-          _databaseRssiSourceField: source,
-          _databaseRssiAddressField: address,
-        });
-      }
-      catch(e) { print(e?.toString()); }
-    }
-  }
 
   // Networking
 
@@ -950,47 +842,5 @@ class Exposure with Service implements NotificationsListener {
     _checkingExposures = null; 
     return detected;
   }
-
-  // Logging
-  
-  void startLogSession(int sessionId) {
-    _logSessionId = sessionId;
-  }
-
-  void endLogSession(String deviceId, bool isAndroid) {
-    if (_logSessionId != null) {
-      _postSessionData(sessionId: _logSessionId, deviceId: deviceId, isAndroid: isAndroid);
-      _logSessionId = null;
-    }
-  }
-
-  Future<bool> _postSessionData({int sessionId, String deviceId, bool isAndroid}) async {
-    List<Map<String, dynamic>> recordRssi;
-    String rssiQuery = "SELECT * FROM $_databaseRssiTable WHERE $_databaseRssiSessionIdField = $sessionId";
-    try { recordRssi = (_database != null) ? await _database.rawQuery(rssiQuery) : null; } catch (e) { print(e?.toString()); }
-
-    List<Map<String, dynamic>> recordContact;
-    String contactQuery = "SELECT * FROM $_databaseContactTable WHERE $_databaseContactSessionIdField = $sessionId";
-    try { recordContact = (_database != null) ? await _database.rawQuery(contactQuery) : null; } catch (e) { print(e?.toString()); }
-
-    List<Map<String, dynamic>> recordRpi;
-    String rpiQuery = "SELECT * FROM $_databaseRpiTable WHERE $_databaseRpiSessionIdField = $sessionId";
-    try { recordRpi = (_database != null) ? await _database.rawQuery(rpiQuery) : null; } catch (e) { print(e?.toString()); }
-
-    Map<String, dynamic> upload = {
-      "deviceID": deviceId,
-      "isAndroid": isAndroid,
-      "contact": recordContact,
-      "rpi": recordRpi,
-      "rssi": recordRssi
-    };
-    Response response = await Network().post(
-        'http://ec2-18-191-37-235.us-east-2.compute.amazonaws.com:8003/PostSessionData',
-        body: AppJson.encode(upload),
-        auth: NetworkAuth.App);
-    return response?.statusCode == 200;
-  }
-
-
 
 }

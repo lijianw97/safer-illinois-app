@@ -243,10 +243,8 @@ public class ExposureClient extends Service {
         if ((possibleRpi != null) && possibleRpi.length == Constants.EXPOSURE_CONTRACT_NUMBER_LENGTH) {
             Log.d(TAG, "onScanResultFound: Bytes are found in Android device!");
             String rpiEncoded = Utils.Base64.encode(possibleRpi);
-            String deviceAddress = (scanResult.getDevice() != null ? scanResult.getDevice().getAddress() : "");
-            Log.d(TAG, "onScanResultFound: rpiFound: " + rpiEncoded + " from device address: " + deviceAddress);
             if (rpiCallback != null) {
-                rpiCallback.onRpiFound(possibleRpi, scanResult.getRssi(), deviceAddress);
+                rpiCallback.onRpiFound(possibleRpi, scanResult.getRssi());
             }
         } else if (possibleRpi == null) {
             // this could be an ios device
@@ -316,7 +314,7 @@ public class ExposureClient extends Service {
     //region RpiCallback
 
     public static class RpiCallback {
-        public void onRpiFound(byte[] rpi, int rssi, String address) {}
+        public void onRpiFound(byte[] rpi, int rssi) {}
         public void onIOSDeviceFound(ScanResult scanResult){}
     }
 

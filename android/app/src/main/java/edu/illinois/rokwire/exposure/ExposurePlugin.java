@@ -140,10 +140,6 @@ public class ExposurePlugin implements MethodChannel.MethodCallHandler {
     private int exposureMinRssi;
 
     // Helper constants
-    private static final String TEK_MAP_KEY = "tek";
-    private static final String RPI_MAP_KEY = "rpi";
-    private static final String EN_INTERVAL_NUMBER_MAP_KEY = "ENIntervalNumber";
-    private static final String I_MAP_KEY = "i";
     private static final String DATABASE_VERSION_KEY = "databaseversion";
 
     public static ExposurePlugin registerWith(PluginRegistry.Registrar registrar) {
@@ -207,13 +203,7 @@ public class ExposurePlugin implements MethodChannel.MethodCallHandler {
 
     private void refreshRpi() {
         Log.d(TAG, "refreshRpi");
-        Map<String, Object> retVal = generateRpi();
-        rpi = (byte[]) retVal.get(RPI_MAP_KEY);
-        byte[] tek = (byte[]) retVal.get(TEK_MAP_KEY);
-        int i = (int) retVal.get(I_MAP_KEY);
-        int enIntervalNumber = (int) retVal.get(EN_INTERVAL_NUMBER_MAP_KEY);
-        Log.d(TAG, "Logged - tek: " + Utils.Base64.encode(tek) + ", i: " + i + ", enIntervalNumber: " + enIntervalNumber);
-        uploadRPIUpdate(rpi, tek, Utils.DateTime.getCurrentTimeMillisSince1970(), i, enIntervalNumber);
+        rpi = generateRpi();
         String rpiEncoded = Utils.Base64.encode(rpi);
         Log.d(TAG, "final rpi  = " + rpiEncoded + "size = " + (rpi != null ? rpi.length : "null"));
         if (exposureServer != null) {
@@ -221,7 +211,7 @@ public class ExposurePlugin implements MethodChannel.MethodCallHandler {
         }
     }
 
-    private Map<String, Object> generateRpi() {
+    private byte[] generateRpi() {
         long currentTimestampInMillis = Utils.DateTime.getCurrentTimeMillisSince1970();
         long currentTimeStampInSecs = currentTimestampInMillis / 1000;
         int timestamp = (int) currentTimeStampInSecs;
@@ -274,13 +264,7 @@ public class ExposurePlugin implements MethodChannel.MethodCallHandler {
             tek = i_TEK_map.get(i);
         }
         byte[] rpiTek = (tek != null) ? tek.keySet().iterator().next() : null;
-        byte[] rpi = generateRpiForIntervalNumber(ENIntervalNumber, rpiTek);
-        Map<String, Object> retVal = new HashMap<>();
-        retVal.put(RPI_MAP_KEY, rpi);
-        retVal.put(TEK_MAP_KEY, rpiTek);
-        retVal.put(EN_INTERVAL_NUMBER_MAP_KEY, ENIntervalNumber);
-        retVal.put(I_MAP_KEY, i);
-        return retVal;
+        return generateRpiForIntervalNumber(ENIntervalNumber, rpiTek);
     }
 
     private byte[] generateRpiForIntervalNumber(int enIntervalNumber, byte[] tek) {
@@ -335,18 +319,6 @@ public class ExposurePlugin implements MethodChannel.MethodCallHandler {
         return bluetoothpayload;
     }
 
-    private void uploadRPIUpdate(byte[] rpi, byte[] parentTek, long updateTime, int i, int ENInvertalNumber) {
-        String tekString = Utils.Base64.encode(parentTek);
-        String rpiString = Utils.Base64.encode(rpi);
-        Map<String, Object> rpiParams = new HashMap<>();
-        rpiParams.put(Constants.EXPOSURE_PLUGIN_TIMESTAMP_PARAM_NAME, updateTime);
-        rpiParams.put(Constants.EXPOSURE_PLUGIN_TEK_PARAM_NAME, tekString);
-        rpiParams.put(Constants.EXPOSURE_PLUGIN_RPI_PARAM_NAME, rpiString);
-        rpiParams.put("updateType", "");
-        rpiParams.put("_i", i);
-        rpiParams.put("ENInvertalNumber", ENInvertalNumber);
-        invokeFlutterMethod(Constants.EXPOSURE_PLUGIN_METHOD_NAME_RPI_LOG, rpiParams);
-    }
 
     private void clearRpi() {
         rpi = null;
@@ -418,7 +390,7 @@ public class ExposurePlugin implements MethodChannel.MethodCallHandler {
 
     //region External RPI implementation
 
-    private void logAndroidExposure(String rpi, int rssi, String deviceAddress) {
+    private void logAndroidExposure(String rpi, int rssi) {
         long currentTimeStamp = Utils.DateTime.getCurrentTimeMillisSince1970();
         ExposureRecord record = androidExposures.get(rpi);
         if (record == null) {
@@ -430,7 +402,6 @@ public class ExposurePlugin implements MethodChannel.MethodCallHandler {
             record.updateTimeStamp(currentTimeStamp, rssi);
         }
         notifyExposureTick(rpi, rssi);
-        notifyExposureRssiLog(rpi, currentTimeStamp, rssi, false, deviceAddress);
     }
 
     private void logIosExposure(String peripheralAddress, int rssi) {
@@ -450,12 +421,10 @@ public class ExposurePlugin implements MethodChannel.MethodCallHandler {
             record.updateTimeStamp(currentTimestamp, rssi);
         }
         byte[] rpi = peripheralsRPIs.get(peripheralAddress);
-        String encodedRpi = "";
         if (rpi != null) {
-            encodedRpi = Utils.Base64.encode(rpi);
+            String encodedRpi = Utils.Base64.encode(rpi);
             notifyExposureTick(encodedRpi, rssi);
         }
-        notifyExposureRssiLog(encodedRpi, currentTimestamp, rssi, true, peripheralAddress);
     }
 
     private void notifyExposureTick(String rpi, int rssi) {
@@ -469,20 +438,11 @@ public class ExposurePlugin implements MethodChannel.MethodCallHandler {
             exposureTickParams.put(Constants.EXPOSURE_PLUGIN_TIMESTAMP_PARAM_NAME, currentTimestamp);
             exposureTickParams.put(Constants.EXPOSURE_PLUGIN_RPI_PARAM_NAME, rpi);
             exposureTickParams.put(Constants.EXPOSURE_PLUGIN_RSSI_PARAM_NAME, rssi);
-            invokeFlutterMethod(Constants.EXPOSURE_PLUGIN_METHOD_NAME_THICK, exposureTickParams);
+            invokeFlutterMethod(Constants.EXPOSURE_THICK_METHOD_NAME, exposureTickParams);
             lastNotifyExposureTickTimestamp = currentTimestamp;
         }
     }
 
-    private void notifyExposureRssiLog(String encodedRpi, long currentTimeStamp, int rssi, boolean isiOS, String address) {
-        Map<String, Object> rssiParams = new HashMap<>();
-        rssiParams.put(Constants.EXPOSURE_PLUGIN_RPI_PARAM_NAME, encodedRpi);
-        rssiParams.put(Constants.EXPOSURE_PLUGIN_TIMESTAMP_PARAM_NAME, currentTimeStamp);
-        rssiParams.put(Constants.EXPOSURE_PLUGIN_RSSI_PARAM_NAME, rssi);
-        rssiParams.put(Constants.EXPOSURE_PLUGIN_IOS_RECORD_PARAM_NAME, isiOS);
-        rssiParams.put(Constants.EXPOSURE_PLUGIN_ADDRESS_PARAM_NAME, address);
-        invokeFlutterMethod(Constants.EXPOSURE_PLUGIN_METHOD_NAME_RSSI_LOG, rssiParams);
-    }
 
     private void processExposures() {
         Log.d(TAG, "Process Exposures");
@@ -583,7 +543,7 @@ public class ExposurePlugin implements MethodChannel.MethodCallHandler {
         }
         if ((rpi != null) && (record != null)) {
             String encodedRpi = Utils.Base64.encode(rpi);
-            notifyExposure(record, encodedRpi, true, address);
+            notifyExposure(record, encodedRpi);
         }
     }
 
@@ -598,18 +558,16 @@ public class ExposurePlugin implements MethodChannel.MethodCallHandler {
         }
 
         if ((rpi != null) && (record != null)) {
-            notifyExposure(record, rpi, false, "");
+            notifyExposure(record, rpi);
         }
     }
 
-    private void notifyExposure(ExposureRecord record, String rpi, boolean isiOS, String peripheralUuid) {
+    private void notifyExposure(ExposureRecord record, String rpi) {
         if ((record != null) && (exposureMinDurationInMillis <= record.getDuration())) {
             Map<String, Object> exposureParams = new HashMap<>();
             exposureParams.put(Constants.EXPOSURE_PLUGIN_TIMESTAMP_PARAM_NAME, record.getTimestampCreated());
             exposureParams.put(Constants.EXPOSURE_PLUGIN_RPI_PARAM_NAME, rpi);
             exposureParams.put(Constants.EXPOSURE_PLUGIN_DURATION_PARAM_NAME, record.getDuration());
-            exposureParams.put(Constants.EXPOSURE_PLUGIN_IOS_RECORD_PARAM_NAME, isiOS);
-            exposureParams.put(Constants.EXPOSURE_PLUGIN_PERIPHERAL_UUID_PARAM_NAME, peripheralUuid);
             invokeFlutterMethod(Constants.EXPOSURE_PLUGIN_EXPOSURE_METHOD_NAME, exposureParams);
         }
     }
@@ -857,11 +815,11 @@ public class ExposurePlugin implements MethodChannel.MethodCallHandler {
 
     private ExposureClient.RpiCallback clientRpiCallback = new ExposureClient.RpiCallback() {
         @Override
-        public void onRpiFound(byte[] rpi, int rssi, String address) {
+        public void onRpiFound(byte[] rpi, int rssi) {
             if ((rpi != null) && (rssi != Constants.EXPOSURE_NO_RSSI_VALUE)) {
                 String rpiEncoded = Utils.Base64.encode(rpi);
                 Log.d(TAG, String.format(Locale.getDefault(), "onRpiFound: '%s' / rssi: %d", rpiEncoded, rssi));
-                logAndroidExposure(rpiEncoded, rssi, address);
+                logAndroidExposure(rpiEncoded, rssi);
             }
         }
 
@@ -1014,7 +972,7 @@ public class ExposurePlugin implements MethodChannel.MethodCallHandler {
         }
         if ((rpi != null) && (record != null)) {
             String encodedRpi = Utils.Base64.encode(rpi);
-            notifyExposure(record, encodedRpi, true, address);
+            notifyExposure(record, encodedRpi);
         }
     }
 

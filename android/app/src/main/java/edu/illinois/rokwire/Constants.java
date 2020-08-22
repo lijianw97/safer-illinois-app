@@ -64,9 +64,6 @@ public class Constants {
     public static final String EXPOSURE_PLUGIN_METHOD_NAME_STOP = "stop";
     public static final String EXPOSURE_PLUGIN_METHOD_NAME_TEKS = "TEKs";
     public static final String EXPOSURE_PLUGIN_METHOD_NAME_TEK_RPIS = "tekRPIs";
-    public static final String EXPOSURE_PLUGIN_METHOD_NAME_RPI_LOG = "exposureRPILog";
-    public static final String EXPOSURE_PLUGIN_METHOD_NAME_THICK = "exposureThick";
-    public static final String EXPOSURE_PLUGIN_METHOD_NAME_RSSI_LOG = "exposureRSSILog";
     public static final String EXPOSURE_PLUGIN_METHOD_NAME_EXPIRE_TEK = "expireTEK";
     public static final String EXPOSURE_PLUGIN_SETTINGS_PARAM_NAME = "settings";
     public static final String EXPOSURE_PLUGIN_RPI_PARAM_NAME = "rpi";
@@ -76,9 +73,7 @@ public class Constants {
     public static final String EXPOSURE_PLUGIN_EXPOSURE_METHOD_NAME = "exposure";
     public static final String EXPOSURE_PLUGIN_DURATION_PARAM_NAME = "duration";
     public static final String EXPOSURE_PLUGIN_RSSI_PARAM_NAME = "rssi";
-    public static final String EXPOSURE_PLUGIN_ADDRESS_PARAM_NAME = "address";
-    public static final String EXPOSURE_PLUGIN_IOS_RECORD_PARAM_NAME = "isiOSRecord";
-    public static final String EXPOSURE_PLUGIN_PERIPHERAL_UUID_PARAM_NAME = "peripheralUuid";
+    public static final String EXPOSURE_THICK_METHOD_NAME = "exposureThick";
     public static final String EXPOSURE_PLUGIN_TEK_EXPIRE_PARAM_NAME = "expirestamp";
     public static final String EXPOSURE_BLE_DEVICE_FOUND = "edu.illinois.rokwire.exposure.ble.FOUND_DEVICE";
     public static final String EXPOSURE_BLE_ACTION_FOUND = "edu.illinois.rokwire.exposure.ble.scan.ACTION_FOUND";

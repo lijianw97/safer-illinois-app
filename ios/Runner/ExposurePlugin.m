@@ -42,8 +42,6 @@ static NSString* const kStopMethodName          = @"stop";
 static NSString* const kTEKsMethodName          = @"TEKs";
 static NSString* const kTekRPIsMethodName       = @"tekRPIs";
 static NSString* const kExpireTEKMethodName     = @"expireTEK";
-static NSString* const kRPILogMethodName        = @"exposureRPILog";
-static NSString* const kRSSILogMethodName       = @"exposureRSSILog";
 static NSString* const kSettingsParamName       = @"settings";
 static NSString* const kTEKParamName            = @"tek";
 static NSString* const kTimestampParamName      = @"timestamp";
@@ -531,7 +529,7 @@ static ExposurePlugin *g_Instance = nil;
 		}
 		
 		if ((rpi != nil) && (record != nil)) {
-			[self notifyExposure:record rpi:rpi peripheralUuid:peripheralUuid];
+			[self notifyExposure:record rpi:rpi];
 		}
 	}
 }
@@ -547,7 +545,7 @@ static ExposurePlugin *g_Instance = nil;
 	}
 
 	if ((rpi != nil) && (record != nil)) {
-		[self notifyExposure:record rpi:rpi peripheralUuid:nil];
+		[self notifyExposure:record rpi:rpi];
 	}
 }
 
@@ -602,7 +600,7 @@ static ExposurePlugin *g_Instance = nil;
 					[self updateExposuresTimer];
 				}
 				if (rpi != nil && record != nil) {
-					[self notifyExposure:record rpi:rpi peripheralUuid:peripheralUuid];
+					[self notifyExposure:record rpi:rpi];
 				}
 				[_peripheralRPIs setObject:rpiData forKey:peripheralUuid];
 			}
@@ -682,7 +680,7 @@ static ExposurePlugin *g_Instance = nil;
 				[self updateExposuresTimer];
 			}
 			if ((rpi != nil) && (record != nil)) {
-				[self notifyExposure:record rpi:rpi peripheralUuid:peripheralUuid];
+				[self notifyExposure:record rpi:rpi];
 			}
 
 			NSTimeInterval currentTimestamp = [[[NSDate alloc] init] timeIntervalSince1970];
@@ -1020,7 +1018,6 @@ static ExposurePlugin *g_Instance = nil;
 	//NSLog(@"ExposurePlugin: Obtain tek {%@}", tek);
 	
 	NSData* rpi = [self generateRPIForIntervalNumber:ENInvertalNumber tek:tekRecord.tek];
-	[self notifyRPI:rpi tek:tekRecord.tek updateType:(_rpi != nil) ? @"update" : @"init" timestamp:(currentTimestamp * 1000.0) _i:_i ENInvertalNumber:ENInvertalNumber];
 	return rpi;
 }
 
@@ -1232,8 +1229,7 @@ static ExposurePlugin *g_Instance = nil;
 	}
 
 	NSData *rpi = [_peripheralRPIs objectForKey:peripheralUuid];
-	[self notifyExposureTick:rpi rssi:rssi peripheralUuid:peripheralUuid];
-	[self notifyRSSI:rssi rpi:rpi timestamp:(currentTimestamp * 1000.0) peripheralUuid:peripheralUuid];
+	[self notifyExposureTick:rpi rssi:rssi];
 }
 
 - (void)logAndroidExposure:(NSData*)rpi rssi:(int)rssi {
@@ -1253,8 +1249,7 @@ static ExposurePlugin *g_Instance = nil;
 		[record updateTimestamp:currentTimestamp rssi:rssi];
 	}
 
-	[self notifyExposureTick:rpi rssi:rssi peripheralUuid:nil];
-	[self notifyRSSI:rssi rpi:rpi timestamp:(currentTimestamp * 1000.0) peripheralUuid:nil];
+	[self notifyExposureTick:rpi rssi:rssi];
 }
 
 - (void)updateExposuresTimer {
@@ -1342,25 +1337,20 @@ static ExposurePlugin *g_Instance = nil;
 
 #pragma mark Notifications
 
-- (void)notifyExposure:(ExposureRecord*)record rpi:(NSData*)rpi peripheralUuid:(NSUUID*)peripheralUuid {
+- (void)notifyExposure:(ExposureRecord*)record rpi:(NSData*)rpi {
 	if (_exposureMinDuration <= record.durationInterval) {
 		NSString *rpiString = [rpi base64EncodedStringWithOptions:0];
-		NSTimeInterval currentTimeInterval = [[[NSDate alloc] init] timeIntervalSince1970];
 		NSLog(@"ExposurePlugin: Report Exposure: rpi: {%@} duration: %@", rpiString, @(record.duration));
 		
 		[_methodChannel invokeMethod:kExposureNotificationName arguments:@{
 			kExposureTimestampParamName: [NSNumber numberWithInteger:record.timestampCreated],
 			kExposureRPIParamName:       rpiString ?: [NSNull null],
 			kExposureDurationParamName:  [NSNumber numberWithInteger:record.duration],
-
-			@"peripheralUuid":           [peripheralUuid UUIDString] ?: [NSNull null],
-			@"isiOSRecord":              [NSNumber numberWithBool:(peripheralUuid != nil)],
-			@"endTimestamp":             [NSNumber numberWithInteger:currentTimeInterval * 1000.0],
 		}];
 	}
 }
 
-- (void)notifyExposureTick:(NSData*)rpi rssi:(int)rssi peripheralUuid:(NSUUID*)peripheralUuid {
+- (void)notifyExposureTick:(NSData*)rpi rssi:(int)rssi{
 
 	// Do not allow more than 1 notification per second
 	NSTimeInterval currentTimeInterval = [[[NSDate alloc] init] timeIntervalSince1970];
@@ -1373,9 +1363,7 @@ static ExposurePlugin *g_Instance = nil;
 			kExposureTimestampParamName: [NSNumber numberWithInteger:currentTimestamp],
 			kExposureRPIParamName:       rpiString ?: @"...",
 			kExposureRSSIParamName:      [NSNumber numberWithInteger:rssi],
-			@"peripheralUuid":           [peripheralUuid UUIDString] ?: [NSNull null],
 		}];
-	
 		_lastNotifyExposireThickTime = currentTimeInterval;
 	}
 
@@ -1391,30 +1379,6 @@ static ExposurePlugin *g_Instance = nil;
 	}];
 }
 
-- (void)notifyRPI:(NSData*)rpi tek:(NSData*)tek updateType:(NSString*)updateType timestamp:(NSInteger)timestamp _i:(uint32_t)_i ENInvertalNumber:(uint32_t)ENInvertalNumber {
-	NSString *rpiString = [rpi base64EncodedStringWithOptions:0];
-	NSString *tekString = [tek base64EncodedStringWithOptions:0];
-	NSLog(@"ExposurePlugin: Report RPI: {%@}", rpiString);
-	[_methodChannel invokeMethod:kRPILogMethodName arguments:@{
-		kExposureTimestampParamName:            [NSNumber numberWithInteger:timestamp],
-		@"updateType":                          updateType ?: [NSNull null],
-		@"rpi":                                 rpiString ?: [NSNull null],
-		@"tek":                                 tekString ?: [NSNull null],
-		@"_i":                                  [NSNumber numberWithInteger:_i],
-		@"ENInvertalNumber":                    [NSNumber numberWithInteger:ENInvertalNumber],
-	}];
-}
-
-- (void)notifyRSSI:(int)rssi rpi:(NSData*)rpi timestamp:(NSInteger)timestamp peripheralUuid:(NSUUID*)peripheralUuid {
-	NSString *rpiString = [rpi base64EncodedStringWithOptions:0];
-	[_methodChannel invokeMethod:kRSSILogMethodName arguments:@{
-		kExposureTimestampParamName: [NSNumber numberWithInteger:timestamp],
-		@"rpi":                      rpiString ?: [NSNull null],
-		@"rssi":                     [NSNumber numberWithInt:rssi],
-		@"isiOSRecord":              [NSNumber numberWithBool:(peripheralUuid != nil)],
-		@"address":                  [peripheralUuid UUIDString] ?: [NSNull null],
-	}];
-}
 
 @end
 
